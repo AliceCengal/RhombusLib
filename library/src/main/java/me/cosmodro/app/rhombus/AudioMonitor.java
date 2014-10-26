@@ -21,11 +21,11 @@ import java.util.List;
 public class AudioMonitor {
     public static String TAG = "Rhombus AudioMonitor";
 
-    private boolean debugging = true;
+    private static final boolean DEBUG = true;
 
     private Handler mHandler;
 
-    private byte[] audioBytes;
+    //private byte[] audioBytes;
 
     private int frequency = 44100;
     private int channelConfiguration = AudioFormat.CHANNEL_IN_MONO;
@@ -33,9 +33,9 @@ public class AudioMonitor {
     private int bufferSize;
     private AudioRecord audioRecord;
     private int silenceLevel = 500; //arbitrary level below which we consider "silent"
-    private int minLevel = silenceLevel; //adaptive minimum level, should vary with each swipe.
-    private double smoothing = 0.1;
-    private double minLevelCoeff = 0.5;
+    //private int minLevel = silenceLevel; //adaptive minimum level, should vary with each swipe.
+    //private double smoothing = 0.1;
+    //private double minLevelCoeff = 0.5;
 
     private boolean recording = false;
 
@@ -135,7 +135,6 @@ public class AudioMonitor {
         short[] buffer = new short[bufferSize];
         boolean silent = true;
         short bufferVal;
-        boolean effectivelySilent;
         startRecording();
         int found = 0;
         int quorum = 5; //number of non-silent samples to find before we begin recording.
@@ -146,7 +145,7 @@ public class AudioMonitor {
             for (int i = 0; i < bufferReadResult; i++) {
                 bufferVal = buffer[i];
                 //debug(TAG, "monitor val:"+bufferVal+", found:"+found);
-                effectivelySilent = Math.abs(bufferVal) < silenceLevel;
+                final boolean effectivelySilent = Math.abs(bufferVal) < silenceLevel;
                 if (silent && !effectivelySilent) {
                     found++;
                     if (found > quorum) {
@@ -167,7 +166,7 @@ public class AudioMonitor {
 
     private void recordData(short[] initialBuffer, int initialBufferSize) {
         debug(TAG, "recording data");
-        Message msg = Message.obtain();
+        Message msg; // = Message.obtain();
         // Create a DataOutputStream to write the audio data
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         BufferedOutputStream bos = new BufferedOutputStream(os);
@@ -222,12 +221,11 @@ public class AudioMonitor {
                 mHandler.sendMessage(msg);
                 return;
             }
-            audioBytes = os.toByteArray();
+            byte[] audioBytes = os.toByteArray();
             msg = Message.obtain();
             msg.what = MessageType.DATA.ordinal();
             msg.obj = getSamples(audioBytes);
             mHandler.sendMessage(msg);
-            return;
 
             //reportResult(processData(getSamples(audioBytes)));
 
@@ -245,7 +243,7 @@ public class AudioMonitor {
     /**
      * extracts 16 bit samples from an array of bytes
      *
-     * @param bytes
+     * @param bytes source
      * @return List<Integer> of samples.
      * @throws IOException
      */
@@ -255,14 +253,14 @@ public class AudioMonitor {
         BufferedInputStream bis = new BufferedInputStream(is);
         DataInputStream dis = new DataInputStream(bis);
         while (dis.available() > 0) {
-            result.add(Integer.valueOf(dis.readShort()));
+            result.add((int)dis.readShort());
         }
         return result;
     }
 
 
     private void debug(String tag, String message) {
-        if (debugging) {
+        if (DEBUG) {
             Log.d(tag, message);
         }
     }
