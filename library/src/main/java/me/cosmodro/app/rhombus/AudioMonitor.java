@@ -1,6 +1,5 @@
 package me.cosmodro.app.rhombus;
 
-import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.os.Handler;
@@ -25,14 +24,10 @@ public class AudioMonitor {
 
     private Handler mHandler;
 
-    //private byte[] audioBytes;
+    private AudioConfig mConfig;
 
-    private int frequency = 44100;
-    private int channelConfiguration = AudioFormat.CHANNEL_IN_MONO;
-    private int audioEncoding = AudioFormat.ENCODING_PCM_16BIT;
-    private int bufferSize;
     private AudioRecord audioRecord;
-    private int silenceLevel = 500; //arbitrary level below which we consider "silent"
+
     //private int minLevel = silenceLevel; //adaptive minimum level, should vary with each swipe.
     //private double smoothing = 0.1;
     //private double minLevelCoeff = 0.5;
@@ -40,34 +35,12 @@ public class AudioMonitor {
     private boolean recording = false;
 
     public AudioMonitor(Handler handler) {
-        mHandler = handler;
-        setFrequency(frequency);
+        this(handler, AudioConfig.DEFAULT);
     }
 
-    /**
-     * set the sample rate for recording.  Recalculates internal buffersize according to value.
-     *
-     * @param f
-     * @throws IllegalStateException if called while recording
-     */
-    public void setFrequency(int f) {
-        if (recording) {
-            throw new IllegalStateException("Cannot set frequency while recording");
-        } else {
-            int oldfreq = frequency;
-            frequency = f;
-            debug(TAG, "setting frequency to: " + f);
-            bufferSize = AudioRecord.getMinBufferSize(frequency, channelConfiguration, audioEncoding) * 2;
-            if (bufferSize < 0) {
-                debug(TAG, "could not set sample rate as requested.  Error code is:" + bufferSize);
-                frequency = oldfreq;
-                bufferSize = AudioRecord.getMinBufferSize(frequency, channelConfiguration, audioEncoding) * 2;
-
-                Message msg = Message.obtain();
-                msg.what = MessageType.INVALID_SAMPLE_RATE.ordinal();
-                mHandler.sendMessage(msg);
-            }
-        }
+    public AudioMonitor(Handler handler, AudioConfig config) {
+        mHandler = handler;
+        mConfig = config;
     }
 
     /**
@@ -76,7 +49,7 @@ public class AudioMonitor {
      * @return
      */
     public int getFrequency() {
-        return frequency;
+        return mConfig.frequency;
     }
 
     /**
@@ -85,17 +58,7 @@ public class AudioMonitor {
      * @return
      */
     public int getSilenceLevel() {
-        return this.silenceLevel;
-    }
-
-    /**
-     * set arbitrary audio level below which we consider silent.
-     * Defaults to 500
-     *
-     * @param silenceLevel
-     */
-    public void setSilenceLevel(int silenceLevel) {
-        this.silenceLevel = silenceLevel;
+        return mConfig.silenceLevel;
     }
 
     /**
@@ -109,10 +72,10 @@ public class AudioMonitor {
 
     public void startRecording() {
         debug(TAG, "start recording");
-        debug(TAG, "bufferSize: " + bufferSize);
+        debug(TAG, "bufferSize: " + mConfig.bufferSize);
         audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
-                frequency, channelConfiguration,
-                audioEncoding, bufferSize);
+                mConfig.frequency, mConfig.channelConfiguration,
+                mConfig.audioEncoding, mConfig.bufferSize);
         audioRecord.startRecording();
         recording = true;
     }
@@ -132,20 +95,21 @@ public class AudioMonitor {
         Message msg = Message.obtain();
         msg.what = MessageType.NO_DATA_PRESENT.ordinal();
         mHandler.sendMessage(msg);
-        short[] buffer = new short[bufferSize];
+        short[] buffer = new short[mConfig.bufferSize];
         boolean silent = true;
         short bufferVal;
         startRecording();
         int found = 0;
         int quorum = 5; //number of non-silent samples to find before we begin recording.
         int bufferReadResult = 0;
+
         while (silent && recording) {
-            bufferReadResult = audioRecord.read(buffer, 0, bufferSize);
+            bufferReadResult = audioRecord.read(buffer, 0, mConfig.bufferSize);
             found = 0;
             for (int i = 0; i < bufferReadResult; i++) {
                 bufferVal = buffer[i];
                 //debug(TAG, "monitor val:"+bufferVal+", found:"+found);
-                final boolean effectivelySilent = Math.abs(bufferVal) < silenceLevel;
+                final boolean effectivelySilent = Math.abs(bufferVal) < mConfig.silenceLevel;
                 if (silent && !effectivelySilent) {
                     found++;
                     if (found > quorum) {
@@ -173,11 +137,11 @@ public class AudioMonitor {
         DataOutputStream dos = new DataOutputStream(bos);
 
         short bufferVal;
-        short[] buffer = new short[bufferSize];
+        short[] buffer = new short[mConfig.bufferSize];
         boolean effectivelySilent;
-        int silenceAtEndThreshold = frequency; //get one second of (near) silence
+        int silenceAtEndThreshold = mConfig.frequency; //get one second of (near) silence
         int silentSamples = 0;
-        int maxSamples = frequency * 10;
+        int maxSamples = mConfig.frequency * 10;
         int totalSamples = 0;
         boolean done = false; //have we recorded 1 second of silence
         int bufferReadResult = 0;
@@ -189,10 +153,10 @@ public class AudioMonitor {
             int nonSilentAtEndFound = 0;
             int quorum = 5;
             while (!done && recording && totalSamples < maxSamples) {
-                bufferReadResult = audioRecord.read(buffer, 0, bufferSize);
+                bufferReadResult = audioRecord.read(buffer, 0, mConfig.bufferSize);
                 for (int i = 0; i < bufferReadResult; i++) {
                     bufferVal = buffer[i];
-                    effectivelySilent = Math.abs(bufferVal) < silenceLevel;
+                    effectivelySilent = Math.abs(bufferVal) < mConfig.silenceLevel;
                     dos.writeShort(buffer[i]);
                     if (effectivelySilent) {
                         nonSilentAtEndFound = 0;
