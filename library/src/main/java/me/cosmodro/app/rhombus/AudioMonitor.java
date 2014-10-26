@@ -56,6 +56,13 @@ public class AudioMonitor {
                 mConfig.channelConfiguration,
                 mConfig.audioEncoding,
                 mConfig.bufferSize);
+        while (audioRecord.getState() == AudioRecord.STATE_UNINITIALIZED) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
         audioRecord.startRecording();
         recording = true;
     }
@@ -175,8 +182,6 @@ public class AudioMonitor {
             msg.what = MessageType.DATA.ordinal();
             msg.obj = getSamples(audioBytes);
             mHandler.sendMessage(msg);
-
-            //reportResult(processData(getSamples(audioBytes)));
 
         } catch (Exception e) {
             Log.e(TAG, "Recording Failed", e);

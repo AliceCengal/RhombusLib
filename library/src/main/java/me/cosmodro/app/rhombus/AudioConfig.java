@@ -30,7 +30,7 @@ public class AudioConfig {
                     44100,
                     AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,
-                    500);
+                    300);
 
     public static AudioConfig create(int frequency,
                                      int channelConfiguration,

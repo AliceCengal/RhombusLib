@@ -11,14 +11,14 @@ import java.util.List;
 //import android.util.Log;
 
 public class AudioDecoder {
-    public static String TAG = "Rhombus AudioDecoder";
-    public static int TRACK_1_BITLENGTH = 7;
-    public static int TRACK_1_BASECHAR = 32;
+    public static final String TAG = "Rhombus AudioDecoder";
+    public static final int TRACK_1_BITLENGTH = 7;
+    public static final int TRACK_1_BASECHAR = 32;
 
-    public static int TRACK_2_BITLENGTH = 5;
-    public static int TRACK_2_BASECHAR = 48;
+    public static final int TRACK_2_BITLENGTH = 5;
+    public static final int TRACK_2_BASECHAR = 48;
 
-    private boolean debugging = true;
+    private static final boolean DEBUGGING = true;
 
     private int silenceLevel = 500; //arbitrary level below which we consider "silent"
     private int minLevel = silenceLevel; //adaptive minimum level, should vary with each swipe.
@@ -125,7 +125,7 @@ public class AudioDecoder {
     /**
      * given a list of samples, get the average value, then subtract that from each sample
      *
-     * @param List<Integer> data
+     * @param data
      * @return
      */
     private List<Integer> recenter(List<Integer> data) {
@@ -196,7 +196,7 @@ public class AudioDecoder {
      * get all peaks above threshold
      * a peak is a positive maximum or a negative minimum
      *
-     * @param bytes
+     * @param data
      * @return
      */
     private List<Peak> getPeaks(List<Integer> data, int threshold) {
@@ -467,18 +467,13 @@ public class AudioDecoder {
 
     private char decode(int input, int baseChar) {
         //debug(TAG, "decode input: "+input);
-        char decoded = (char) (input + baseChar);
-        return decoded;
+        return (char) (input + baseChar);
     }
 
     private boolean isOne(int actualInterval, int oneInterval) {
         int diffToOI = Math.abs(actualInterval - oneInterval);
         int diffToZI = Math.abs(actualInterval - (2 * oneInterval));
-        if (diffToOI < diffToZI) {
-            return true;
-        } else {
-            return false;
-        }
+        return diffToOI < diffToZI;
     }
 
     private BitSet reverse(BitSet bits) {
@@ -504,7 +499,7 @@ public class AudioDecoder {
     }
 
     private void debug(String tag, String message) {
-        if (debugging) {
+        if (DEBUGGING) {
             //Log.d(tag, message);
         }
     }
