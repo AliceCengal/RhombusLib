@@ -43,44 +43,24 @@ public class AudioMonitor {
         mConfig = config;
     }
 
-    /**
-     * get the sample_rate used in recording audio
-     *
-     * @return
-     */
-    public int getFrequency() {
-        return mConfig.frequency;
+    public AudioConfig getConfiguration() {
+        return mConfig;
     }
 
-    /**
-     * get the level below which we consider audio data to be silent
-     *
-     * @return
-     */
-    public int getSilenceLevel() {
-        return mConfig.silenceLevel;
-    }
-
-    /**
-     * get whether currently recording
-     *
-     * @return
-     */
-    public boolean isRecording() {
-        return recording;
-    }
-
-    public void startRecording() {
+    private void startRecording() {
         debug(TAG, "start recording");
         debug(TAG, "bufferSize: " + mConfig.bufferSize);
-        audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
-                mConfig.frequency, mConfig.channelConfiguration,
-                mConfig.audioEncoding, mConfig.bufferSize);
+        audioRecord = new AudioRecord(
+                MediaRecorder.AudioSource.MIC,
+                mConfig.frequency,
+                mConfig.channelConfiguration,
+                mConfig.audioEncoding,
+                mConfig.bufferSize);
         audioRecord.startRecording();
         recording = true;
     }
 
-    public void stopRecording() {
+    private void stopRecording() {
         debug(TAG, "stop recording");
         if (audioRecord != null) {
             audioRecord.stop();
@@ -95,19 +75,22 @@ public class AudioMonitor {
         Message msg = Message.obtain();
         msg.what = MessageType.NO_DATA_PRESENT.ordinal();
         mHandler.sendMessage(msg);
-        short[] buffer = new short[mConfig.bufferSize];
+
+        final int quorum = 5; //number of non-silent samples to find before we begin recording.
+        final short[] buffer = new short[mConfig.bufferSize];
+
         boolean silent = true;
-        short bufferVal;
+
         startRecording();
-        int found = 0;
-        int quorum = 5; //number of non-silent samples to find before we begin recording.
+
         int bufferReadResult = 0;
 
         while (silent && recording) {
             bufferReadResult = audioRecord.read(buffer, 0, mConfig.bufferSize);
-            found = 0;
+            int found = 0;
+
             for (int i = 0; i < bufferReadResult; i++) {
-                bufferVal = buffer[i];
+                short bufferVal = buffer[i];
                 //debug(TAG, "monitor val:"+bufferVal+", found:"+found);
                 final boolean effectivelySilent = Math.abs(bufferVal) < mConfig.silenceLevel;
                 if (silent && !effectivelySilent) {
@@ -130,40 +113,42 @@ public class AudioMonitor {
 
     private void recordData(short[] initialBuffer, int initialBufferSize) {
         debug(TAG, "recording data");
-        Message msg; // = Message.obtain();
-        // Create a DataOutputStream to write the audio data
-        ByteArrayOutputStream os = new ByteArrayOutputStream();
-        BufferedOutputStream bos = new BufferedOutputStream(os);
-        DataOutputStream dos = new DataOutputStream(bos);
 
-        short bufferVal;
-        short[] buffer = new short[mConfig.bufferSize];
-        boolean effectivelySilent;
-        int silenceAtEndThreshold = mConfig.frequency; //get one second of (near) silence
+        // Create a DataOutputStream to write the audio data
+        final ByteArrayOutputStream os = new ByteArrayOutputStream();
+        final BufferedOutputStream bos = new BufferedOutputStream(os);
+        final DataOutputStream dos = new DataOutputStream(bos);
+
+        final short[] buffer = new short[mConfig.bufferSize];
+        final int silenceAtEndThreshold = mConfig.frequency; //get one second of (near) silence
+        final int maxSamples = mConfig.frequency * 10;
+        final int quorum = 5;
+
         int silentSamples = 0;
-        int maxSamples = mConfig.frequency * 10;
         int totalSamples = 0;
         boolean done = false; //have we recorded 1 second of silence
-        int bufferReadResult = 0;
+
         try {
             //copy stuff from intialBuffer to dos.
             for (int i = 0; i < initialBufferSize; i++) {
                 dos.writeShort(initialBuffer[i]);
             }
+
             int nonSilentAtEndFound = 0;
-            int quorum = 5;
+
             while (!done && recording && totalSamples < maxSamples) {
-                bufferReadResult = audioRecord.read(buffer, 0, mConfig.bufferSize);
+                final int bufferReadResult = audioRecord.read(buffer, 0, mConfig.bufferSize);
+
                 for (int i = 0; i < bufferReadResult; i++) {
-                    bufferVal = buffer[i];
-                    effectivelySilent = Math.abs(bufferVal) < mConfig.silenceLevel;
+                    boolean effectivelySilent = Math.abs(buffer[i]) < mConfig.silenceLevel;
                     dos.writeShort(buffer[i]);
+
                     if (effectivelySilent) {
                         nonSilentAtEndFound = 0;
                         silentSamples++;
                         if (silentSamples > silenceAtEndThreshold) {
                             done = true;
-                            msg = Message.obtain();
+                            Message msg = Message.obtain();
                             msg.what = MessageType.NO_DATA_PRESENT.ordinal();
                             mHandler.sendMessage(msg);
                         }
@@ -180,13 +165,13 @@ public class AudioMonitor {
             dos.close();
             if (!recording) {
                 debug(TAG, "not recording after loop in recorddata, assuming aborted");
-                msg = Message.obtain();
+                Message msg = Message.obtain();
                 msg.what = MessageType.NO_DATA_PRESENT.ordinal();
                 mHandler.sendMessage(msg);
                 return;
             }
             byte[] audioBytes = os.toByteArray();
-            msg = Message.obtain();
+            Message msg = Message.obtain();
             msg.what = MessageType.DATA.ordinal();
             msg.obj = getSamples(audioBytes);
             mHandler.sendMessage(msg);
@@ -197,7 +182,7 @@ public class AudioMonitor {
             Log.e(TAG, "Recording Failed", e);
             e.printStackTrace();
             stopRecording();
-            msg = Message.obtain();
+            Message msg = Message.obtain();
             msg.what = MessageType.RECORDING_ERROR.ordinal();
             mHandler.sendMessage(msg);
         }
@@ -211,7 +196,7 @@ public class AudioMonitor {
      * @return List<Integer> of samples.
      * @throws IOException
      */
-    private List<Integer> getSamples(byte[] bytes) throws IOException {
+    private static List<Integer> getSamples(byte[] bytes) throws IOException {
         ArrayList<Integer> result = new ArrayList<Integer>(bytes.length / 2);
         InputStream is = new ByteArrayInputStream(bytes);
         BufferedInputStream bis = new BufferedInputStream(is);
@@ -222,8 +207,7 @@ public class AudioMonitor {
         return result;
     }
 
-
-    private void debug(String tag, String message) {
+    private static void debug(String tag, String message) {
         if (DEBUG) {
             Log.d(tag, message);
         }
